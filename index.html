@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deep Space Time Simulator</title>
+    <link rel="stylesheet" href="./styles.css?v=20260616-galactic-structure-1" />
+  </head>
+  <body>
+    <main class="app-shell galactic-standalone-shell">
+      <header class="topbar">
+        <div class="topbar-main galactic-topbar-main">
+          <div class="topbar-brand">
+            <p class="eyebrow">Galactic Motion</p>
+            <h1>Deep Space Time Simulator</h1>
+          </div>
+          <div class="topbar-line topbar-line-primary galactic-control-line">
+            <div class="topbar-group galactic-year-group">
+              <label>
+                <span>Deep-Time Year</span>
+                <input id="galacticYearInput" type="number" step="1" value="2026" />
+              </label>
+            </div>
+            <div class="topbar-group galactic-transport-group">
+              <div class="transport galactic-transport" aria-label="Deep-time playback controls">
+                <button id="galacticStepBack" class="icon-button" type="button" title="Step back 100 years" aria-label="Step back 100 years">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m11 6-6 6 6 6"></path><path d="m19 6-6 6 6 6"></path></svg>
+                </button>
+                <button id="galacticReverse" class="icon-button" type="button" title="Reverse deep time" aria-label="Reverse deep time">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m11 17-5-5 5-5"></path><path d="m18 17-5-5 5-5"></path></svg>
+                </button>
+                <button id="galacticPlay" class="icon-button active" type="button" title="Play" aria-label="Play" aria-pressed="false">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path class="galactic-play-icon" d="M8 5v14l11-7Z"></path><path class="galactic-pause-icon" d="M8 5v14"></path><path class="galactic-pause-icon" d="M16 5v14"></path></svg>
+                </button>
+                <button id="galacticForward" class="icon-button" type="button" title="Forward deep time" aria-label="Forward deep time">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 17 5-5-5-5"></path><path d="m6 17 5-5-5-5"></path></svg>
+                </button>
+                <button id="galacticStepForward" class="icon-button" type="button" title="Step forward 100 years" aria-label="Step forward 100 years">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 6 6 6-6 6"></path><path d="m5 6 6 6-6 6"></path></svg>
+                </button>
+              </div>
+              <button id="galacticReset" class="icon-button now-icon-button" type="button" title="Reset to current year" aria-label="Reset to current year">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v6h6"></path></svg>
+              </button>
+            </div>
+            <div class="galactic-speed-group" aria-label="Playback speed">
+              <button type="button" class="galactic-speed-button active" data-galactic-speed="100">100y/s</button>
+              <button type="button" class="galactic-speed-button" data-galactic-speed="10000">10ky/s</button>
+              <button type="button" class="galactic-speed-button" data-galactic-speed="1000000">1My/s</button>
+              <button type="button" class="galactic-speed-button" data-galactic-speed="10000000">10My/s</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="solar-geometry-panel standalone" aria-label="Solar geometry simulator">
+        <div class="panel-title">
+          <div>
+            <p class="eyebrow">Solar Geometry</p>
+            <h2>Earth, Seasons & Deep-Time Cycles</h2>
+          </div>
+          <div class="accuracy-note">Educational approximations</div>
+        </div>
+        <div class="solar-timeline-shell">
+          <div class="solar-timeline-controls" aria-label="Solar geometry timeline controls">
+            <div class="solar-playback-buttons" aria-label="Deep-time playback">
+              <button type="button" class="solar-transport-button" id="solarTimelineStepBack" title="Step backward" aria-label="Step backward">-</button>
+              <button type="button" class="solar-transport-button" id="solarTimelineBack" title="Reverse playback" aria-label="Reverse playback">Reverse</button>
+              <button type="button" class="solar-transport-button" id="solarTimelinePlay" aria-pressed="false">Play</button>
+              <button type="button" class="solar-transport-button" id="solarTimelineForward" title="Forward playback" aria-label="Forward playback">Forward</button>
+              <button type="button" class="solar-transport-button" id="solarTimelineStepForward" title="Step forward" aria-label="Step forward">+</button>
+            </div>
+            <div class="solar-scale-buttons" aria-label="Timeline scale">
+              <button type="button" class="solar-scale-button active" data-solar-scale="year">100y/s</button>
+              <button type="button" class="solar-scale-button" data-solar-scale="century">1ky/s</button>
+              <button type="button" class="solar-scale-button" data-solar-scale="10k">10ky/s</button>
+              <button type="button" class="solar-scale-button" data-solar-scale="50k">25ky/s</button>
+            </div>
+            <label class="solar-year-field">
+              <span>Timeline Year</span>
+              <input id="solarTimelineYear" type="number" min="-50000" max="50000" step="1" value="2026" inputmode="numeric">
+            </label>
+            <button type="button" class="solar-reset-button" id="solarTimelineReset">Selected Year</button>
+            <strong class="solar-timeline-range" id="solarTimelineRange">Today / year</strong>
+            <strong class="solar-playback-status" id="solarPlaybackStatus">Paused</strong>
+          </div>
+          <div class="solar-scene-layout">
+            <svg id="solarGeometrySvg" class="solar-geometry-svg" viewBox="0 0 1200 440" role="img" aria-label="Solar geometry timeline visualization"></svg>
+            <aside class="solar-earth-preview" aria-label="Location-centered Earth daylight globe">
+              <div class="solar-earth-canvas-wrap">
+                <canvas id="solarEarthCanvas" width="512" height="512"></canvas>
+                <span class="solar-earth-pin" aria-hidden="true"></span>
+                <span class="solar-subsolar-pin" aria-hidden="true"></span>
+              </div>
+              <strong id="solarGlobeLocation">Selected location</strong>
+              <small id="solarGlobeNote">Subsolar point and terminator update from selected date/time.</small>
+            </aside>
+          </div>
+        </div>
+        <div class="solar-geometry-grid">
+          <article class="solar-card highlight"><span>Vernal Equinox</span><strong id="vernalEquinoxValue">--</strong><p>Tropical Sun at 0 deg Aries.</p></article>
+          <article class="solar-card"><span>Next Solar Marker</span><strong id="nextSolarMarkerValue">--</strong><p id="nextSolarMarkerNote">--</p></article>
+          <article class="solar-card"><span>Obliquity</span><strong id="obliquityValue">--</strong><p>Current axial tilt.</p></article>
+          <article class="solar-card"><span>Eccentricity</span><strong id="eccentricityValue">--</strong><p>Current orbit shape.</p></article>
+          <article class="solar-card"><span>Earth-Sun Distance</span><strong id="earthSunDistanceValue">--</strong><p>Current date distance.</p></article>
+          <article class="solar-card"><span>Ayanamsha</span><strong id="ayanamshaValue">--</strong><p>Tropical-to-sidereal offset.</p></article>
+          <article class="solar-card deep-time"><span>Deep-Time Obliquity</span><strong id="deepObliquityValue">--</strong><p>Milankovitch-cycle approximation.</p></article>
+          <article class="solar-card deep-time"><span>Deep-Time Eccentricity</span><strong id="deepEccentricityValue">--</strong><p>Long-cycle orbit shape.</p></article>
+          <article class="solar-card deep-time"><span>Precession Phase</span><strong id="deepPrecessionValue">--</strong><p>Approximate axial-precession phase.</p></article>
+          <article class="solar-card deep-time"><span>Hemisphere Tilt</span><strong id="seasonHemisphereValue">--</strong><p id="seasonHemisphereNote">--</p></article>
+          <article class="solar-card"><span>Subsolar Point</span><strong id="subsolarValue">--</strong><p id="polarStateValue">--</p></article>
+          <article class="solar-card"><span>Orbit Shape</span><strong id="orbitShapeValue">--</strong><p id="orbitDistanceValue">--</p></article>
+        </div>
+        <div class="solar-phenomena-grid">
+          <article class="solar-feature-panel"><span>Insolation by Latitude</span><canvas id="solarInsolationCanvas" width="640" height="150"></canvas><p>Tilt changes direct sunlight by latitude.</p></article>
+          <article class="solar-feature-panel"><span>Analemma</span><svg id="solarAnalemmaSvg" viewBox="0 0 320 220" role="img" aria-label="Analemma"></svg><p>Equation of time and solar declination.</p></article>
+          <article class="solar-feature-panel"><span>Lagrange Points</span><div class="lagrange-strip" id="lagrangeStrip"></div><p>Schematic Sun-Earth L1-L5 points.</p></article>
+          <article class="solar-feature-panel"><span>Eclipse Season</span><strong id="eclipseValue">--</strong><p id="eclipseNote">--</p></article>
+          <article class="solar-feature-panel wide"><span>Meteor Shower Calendar</span><div class="meteor-list" id="meteorList"></div></article>
+          <article class="solar-feature-panel wide"><span>Observation Mode</span><div class="observation-list" id="observationList"></div></article>
+          <article class="solar-feature-panel wide"><span>Compare Time Cycles</span><div class="calendar-compare-grid" id="calendarCompareGrid"></div></article>
+        </div>
+        <p class="solar-reference-note">Solar Geometry shows seasonal sunlight, orbit shape, precession, analemma, meteor context, and calendar time-cycle comparisons.</p>
+      </section>
+
+      <section class="galactic-panel" aria-label="Galactic motion and pole star simulator">
+        <div class="panel-title">
+          <div>
+            <p class="eyebrow">Standalone Screen</p>
+            <h2>Solar System in the Milky Way</h2>
+          </div>
+          <div class="accuracy-note">Schematic / educational scale</div>
+        </div>
+        <div class="galactic-layout">
+          <article class="galactic-feature wide">
+            <span>Galactic Orbit</span>
+            <svg id="galacticOrbitSvg" viewBox="0 0 1100 620" role="img" aria-label="Solar System motion through the Milky Way"></svg>
+            <p id="galacticOrbitNote">--</p>
+          </article>
+          <article class="galactic-feature">
+            <span>Current Context</span>
+            <div class="galactic-stat-grid">
+              <div><strong id="galacticOrbitPercent">--</strong><small>Orbit fraction in selected offset</small></div>
+              <div><strong id="galacticSpeed">--</strong><small>Approximate galactic orbital speed</small></div>
+              <div><strong id="galacticArm">--</strong><small>Local Milky Way structure</small></div>
+            </div>
+          </article>
+          <article class="galactic-feature">
+            <span>Axial Precession</span>
+            <svg id="poleCycleSvg" viewBox="0 0 420 320" role="img" aria-label="Precession pole star cycle"></svg>
+            <p>The pole star changes because Earth's axis slowly traces a circle in the sky over about 25,770 years.</p>
+          </article>
+          <article class="galactic-feature wide">
+            <span>North Pole Star Candidates</span>
+            <div id="northPoleStars" class="pole-star-grid"></div>
+          </article>
+          <article class="galactic-feature wide">
+            <span>South Pole Star Candidates</span>
+            <div id="southPoleStars" class="pole-star-grid"></div>
+          </article>
+        </div>
+        <p class="solar-reference-note">
+          This screen is isolated so it can later become a separate app or repository. Pole-star years are approximate visual guideposts, not high-precision proper-motion ephemerides.
+        </p>
+      </section>
+    </main>
+    <script type="module" src="./src/galactic-motion/standalone.js?v=20260616-galactic-structure-1"></script>
+  </body>
+</html>

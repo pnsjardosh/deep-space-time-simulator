@@ -1,0 +1,10 @@
+{
+  "name": "deep-space-time-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/local-server.mjs 4180",
+    "check": "node --check src/galactic-motion/standalone.js && node --check src/solar-geometry/model.js"
+  }
+}
