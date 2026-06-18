@@ -502,6 +502,7 @@ label span {
 }
 
 input,
+select,
 button {
   width: 100%;
   min-height: var(--control-size);
@@ -514,6 +515,15 @@ button {
 
 input {
   padding: 0 12px;
+}
+
+select {
+  padding: 0 34px 0 12px;
+  appearance: none;
+  background:
+    linear-gradient(45deg, transparent 50%, rgba(249, 242, 220, 0.86) 50%) calc(100% - 18px) 50% / 6px 6px no-repeat,
+    linear-gradient(135deg, rgba(249, 242, 220, 0.86) 50%, transparent 50%) calc(100% - 13px) 50% / 6px 6px no-repeat,
+    rgba(255, 255, 255, 0.08);
 }
 
 button {
@@ -1636,6 +1646,23 @@ dd {
   width: 100%;
 }
 
+.galactic-location-group {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 82px 90px;
+  align-items: end;
+  gap: var(--control-gap);
+  min-width: 0;
+}
+
+.galactic-location-group label {
+  min-width: 0;
+}
+
+.galactic-location-group input,
+.galactic-location-group select {
+  font-size: 0.86rem;
+}
+
 .galactic-panel {
   margin-top: 16px;
   border: 1px solid var(--line);
@@ -2636,6 +2663,11 @@ body.wheel-zoom-active .hero-grid {
 
   .galactic-year-group {
     width: min(100%, 160px);
+  }
+
+  .galactic-location-group {
+    grid-template-columns: minmax(180px, 1fr) minmax(72px, 0.42fr) minmax(76px, 0.46fr);
+    width: 100%;
   }
 
   .galactic-transport-group {

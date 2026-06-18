@@ -21,6 +21,30 @@
                 <input id="galacticYearInput" type="number" step="1" value="2026" />
               </label>
             </div>
+            <div class="topbar-group galactic-location-group" aria-label="Solar geometry location">
+              <label>
+                <span>Location</span>
+                <select id="galacticLocationPreset">
+                  <option value="ujjain">Ujjain, India</option>
+                  <option value="ahmedabad">Ahmedabad, India</option>
+                  <option value="new-york">New York, USA</option>
+                  <option value="london">London, UK</option>
+                  <option value="sydney">Sydney, Australia</option>
+                  <option value="equator">Equator / Greenwich</option>
+                  <option value="north-polar">High North</option>
+                  <option value="south-polar">High South</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label>
+                <span>Lat</span>
+                <input id="galacticLatInput" type="number" min="-90" max="90" step="0.0001" value="23.1765" />
+              </label>
+              <label>
+                <span>Lon</span>
+                <input id="galacticLonInput" type="number" min="-180" max="180" step="0.0001" value="75.7885" />
+              </label>
+            </div>
             <div class="topbar-group galactic-transport-group">
               <div class="transport galactic-transport" aria-label="Deep-time playback controls">
                 <button id="galacticStepBack" class="icon-button" type="button" title="Step back 100 years" aria-label="Step back 100 years">

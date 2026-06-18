@@ -7,8 +7,21 @@ const MAX_ABS_YEAR = 1000000000;
 const PLAYBACK_RENDER_INTERVAL_MS = 34;
 const SOLAR_PANEL_RENDER_INTERVAL_MS = 120;
 const GALACTIC_DETAIL_RENDER_INTERVAL_MS = 180;
+const LOCATION_PRESETS = {
+  ujjain: { name: "Ujjain, India", lat: 23.1765, lon: 75.7885 },
+  ahmedabad: { name: "Ahmedabad, India", lat: 23.0225, lon: 72.5714 },
+  "new-york": { name: "New York, USA", lat: 40.7128, lon: -74.006 },
+  london: { name: "London, UK", lat: 51.5074, lon: -0.1278 },
+  sydney: { name: "Sydney, Australia", lat: -33.8688, lon: 151.2093 },
+  equator: { name: "Equator / Greenwich", lat: 0, lon: 0 },
+  "north-polar": { name: "High North", lat: 78.2232, lon: 15.6469 },
+  "south-polar": { name: "High South", lat: -77.8419, lon: 166.6863 }
+};
 
 const yearInput = document.querySelector("#galacticYearInput");
+const locationPreset = document.querySelector("#galacticLocationPreset");
+const latInput = document.querySelector("#galacticLatInput");
+const lonInput = document.querySelector("#galacticLonInput");
 const playButton = document.querySelector("#galacticPlay");
 const reverseButton = document.querySelector("#galacticReverse");
 const forwardButton = document.querySelector("#galacticForward");
@@ -28,7 +41,69 @@ let lastGalacticCardsKey = "";
 let yearsPerSecond = 100;
 const sectionVisibility = new Map();
 
-const solarLocation = { name: "Ujjain, India", lat: 23.1765, lon: 75.7885 };
+let solarLocation = getInitialLocation();
+
+function clampNumber(value, min, max, fallback) {
+  const numeric = Number.parseFloat(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(min, Math.min(max, numeric));
+}
+
+function getInitialLocation() {
+  const params = new URLSearchParams(window.location.search);
+  const lat = Number.parseFloat(params.get("lat"));
+  const lon = Number.parseFloat(params.get("lon"));
+  const loc = params.get("loc");
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    return {
+      name: loc || "Custom location",
+      lat: Math.max(-90, Math.min(90, lat)),
+      lon: Math.max(-180, Math.min(180, lon))
+    };
+  }
+  return { ...LOCATION_PRESETS.ujjain };
+}
+
+function locationMatchesPreset(location) {
+  return Object.entries(LOCATION_PRESETS).find(([, preset]) => {
+    return Math.abs(preset.lat - location.lat) < 0.0001 && Math.abs(preset.lon - location.lon) < 0.0001;
+  })?.[0] || "custom";
+}
+
+function syncLocationControls() {
+  if (locationPreset) locationPreset.value = locationMatchesPreset(solarLocation);
+  if (latInput && document.activeElement !== latInput) latInput.value = solarLocation.lat.toFixed(4);
+  if (lonInput && document.activeElement !== lonInput) lonInput.value = solarLocation.lon.toFixed(4);
+}
+
+function setSolarLocation(nextLocation, shouldUpdateUrl = true) {
+  solarLocation = {
+    name: nextLocation.name || "Custom location",
+    lat: clampNumber(nextLocation.lat, -90, 90, solarLocation.lat),
+    lon: clampNumber(nextLocation.lon, -180, 180, solarLocation.lon)
+  };
+  syncLocationControls();
+  if (shouldUpdateUrl) updateLocationUrl();
+  render(true);
+}
+
+function readManualLocation() {
+  const lat = clampNumber(latInput?.value, -90, 90, solarLocation.lat);
+  const lon = clampNumber(lonInput?.value, -180, 180, solarLocation.lon);
+  const presetName = locationPreset?.value === "custom"
+    ? "Custom location"
+    : LOCATION_PRESETS[locationPreset?.value]?.name || solarLocation.name;
+  setSolarLocation({ name: presetName, lat, lon });
+}
+
+function updateLocationUrl() {
+  const params = new URLSearchParams(window.location.search);
+  params.set("loc", solarLocation.name);
+  params.set("lat", solarLocation.lat.toFixed(4));
+  params.set("lon", solarLocation.lon.toFixed(4));
+  const query = params.toString();
+  window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+}
 
 function formatSolarDateTime(date) {
   return date.toLocaleString([], {
@@ -362,6 +437,26 @@ function play(nextDirection) {
   render(true);
 }
 
+locationPreset?.addEventListener("change", () => {
+  const preset = LOCATION_PRESETS[locationPreset.value];
+  if (preset) {
+    setSolarLocation({ ...preset });
+    return;
+  }
+  setSolarLocation({
+    name: "Custom location",
+    lat: clampNumber(latInput?.value, -90, 90, solarLocation.lat),
+    lon: clampNumber(lonInput?.value, -180, 180, solarLocation.lon)
+  });
+});
+latInput?.addEventListener("input", () => {
+  if (locationPreset) locationPreset.value = "custom";
+  readManualLocation();
+});
+lonInput?.addEventListener("input", () => {
+  if (locationPreset) locationPreset.value = "custom";
+  readManualLocation();
+});
 yearInput?.addEventListener("input", () => render(true));
 yearInput?.addEventListener("change", () => render(true));
 stepBackButton?.addEventListener("click", () => {
@@ -394,4 +489,5 @@ resetButton?.addEventListener("click", () => {
 
 setupSectionVisibility();
 initSolarGeometrySection();
+syncLocationControls();
 render(true);
