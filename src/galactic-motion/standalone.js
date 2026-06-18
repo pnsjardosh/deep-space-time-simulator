@@ -4,6 +4,9 @@ import { initSolarGeometryTimeline, updateSolarGeometryPanel } from "../solar-ge
 const STEP_YEARS = 100;
 const GALAXY_VISUAL_ROTATION_MULTIPLIER = 720;
 const MAX_ABS_YEAR = 1000000000;
+const PLAYBACK_RENDER_INTERVAL_MS = 34;
+const SOLAR_PANEL_RENDER_INTERVAL_MS = 120;
+const GALACTIC_DETAIL_RENDER_INTERVAL_MS = 180;
 
 const yearInput = document.querySelector("#galacticYearInput");
 const playButton = document.querySelector("#galacticPlay");
@@ -18,7 +21,12 @@ let selectedYear = new Date().getFullYear();
 let direction = 0;
 let frameId = 0;
 let lastFrameTime = 0;
+let lastRenderTime = 0;
+let lastSolarPanelRenderTime = 0;
+let lastGalacticDetailRenderTime = 0;
+let lastGalacticCardsKey = "";
 let yearsPerSecond = 100;
+const sectionVisibility = new Map();
 
 const solarLocation = { name: "Ujjain, India", lat: 23.1765, lon: 75.7885 };
 
@@ -34,11 +42,6 @@ function formatSolarDateTime(date) {
 
 function initSolarGeometrySection() {
   initSolarGeometryTimeline();
-  updateSolarGeometryPanel({
-    date: new Date(),
-    location: solarLocation,
-    formatDateTime: formatSolarDateTime
-  });
 }
 
 function clampYear(year) {
@@ -54,6 +57,27 @@ function signedOffset(year) {
 function setText(selector, text) {
   const element = document.querySelector(selector);
   if (element) element.textContent = text;
+}
+
+function setupSectionVisibility() {
+  const selectors = [".solar-geometry-panel", ".galactic-panel"];
+  selectors.forEach((selector) => sectionVisibility.set(selector, true));
+  if (!("IntersectionObserver" in window)) return;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const selector = entry.target.matches(".solar-geometry-panel") ? ".solar-geometry-panel" : ".galactic-panel";
+      sectionVisibility.set(selector, entry.isIntersecting);
+      if (entry.isIntersecting) render(true);
+    });
+  }, { rootMargin: "240px 0px" });
+  selectors.forEach((selector) => {
+    const element = document.querySelector(selector);
+    if (element) observer.observe(element);
+  });
+}
+
+function isSectionVisible(selector) {
+  return sectionVisibility.get(selector) !== false;
 }
 
 function rotatePoint(point, center, degrees) {
@@ -84,11 +108,62 @@ function renderCards(selector, stars, activeName) {
   `).join("");
 }
 
+function renderGalacticCards(snapshot) {
+  const key = [
+    Math.round(selectedYear),
+    snapshot.poleStars.currentNorth.name,
+    snapshot.poleStars.currentSouth.name
+  ].join(":");
+  if (key === lastGalacticCardsKey) return;
+  renderCards("#northPoleStars", snapshot.poleStars.northStars, snapshot.poleStars.currentNorth.name);
+  renderCards("#southPoleStars", snapshot.poleStars.southStars, snapshot.poleStars.currentSouth.name);
+  lastGalacticCardsKey = key;
+}
+
+function formatHistoricalYear(year) {
+  if (year < 0) return `${Math.abs(year).toLocaleString()} BCE`;
+  return `${Math.round(year).toLocaleString()} CE`;
+}
+
+function renderPoleStarSummary(snapshot) {
+  const selected = formatHistoricalYear(selectedYear);
+  const north = snapshot.poleStars.currentNorth;
+  const south = snapshot.poleStars.currentSouth;
+  setText("#currentNorthPoleStar", `${north.name} / ${north.constellation}`);
+  setText("#currentSouthPoleStar", `${south.name} / ${south.constellation}`);
+  setText("#currentNorthPoleMeta", `North guide for ${selected}; closest listed near ${formatHistoricalYear(north.year)}, ~${north.distanceDeg} deg from pole.`);
+  setText("#currentSouthPoleMeta", `South guide for ${selected}; closest listed near ${formatHistoricalYear(south.year)}, ~${south.distanceDeg} deg from pole.`);
+}
+
+function renderGalacticContext(snapshot, realRotationDegrees) {
+  const container = document.querySelector("#galacticContextList");
+  const orbitNotes = document.querySelector("#galacticOrbitNotes");
+  const html = `
+    <div><strong>~26-27k light years</strong><small>Approximate radius from galactic center</small></div>
+    <div><strong>~${(snapshot.galactic.galacticYearYears / 1000000).toFixed(0)}M years</strong><small>Approximate galactic orbit period</small></div>
+    <div><strong>${signedOffset(selectedYear)}</strong><small>Selected deep-time offset</small></div>
+    <div><strong>${realRotationDegrees.toFixed(4)} deg</strong><small>True galactic orbital phase change</small></div>
+    <div><strong>${formatSpeed(yearsPerSecond)}</strong><small>Playback speed</small></div>
+  `;
+  if (container && container.dataset.renderKey !== html) {
+    container.innerHTML = html;
+    container.dataset.renderKey = html;
+  }
+  const notesHtml = `
+    <div><strong>Motion guide</strong><small>Yellow path = approximate orbit; blue arrow = motion direction.</small></div>
+    <div><strong>Visual scale</strong><small>Galaxy rotation is magnified ${GALAXY_VISUAL_ROTATION_MULTIPLIER}x so motion is visible.</small></div>
+  `;
+  if (orbitNotes && orbitNotes.dataset.renderKey !== notesHtml) {
+    orbitNotes.innerHTML = notesHtml;
+    orbitNotes.dataset.renderKey = notesHtml;
+  }
+}
+
 function drawGalacticOrbit(snapshot) {
   const svg = document.querySelector("#galacticOrbitSvg");
   if (!svg) return;
-  const cx = 405;
-  const cy = 315;
+  const cx = 380;
+  const cy = 310;
   const orbitAngle = snapshot.galactic.orbitAngle * Math.PI / 180;
   const realRotationDegrees = snapshot.galactic.orbitAngle;
   const visualRotationDegrees = realRotationDegrees * GALAXY_VISUAL_ROTATION_MULTIPLIER;
@@ -105,11 +180,6 @@ function drawGalacticOrbit(snapshot) {
     x: sun.x + Math.cos(tangent) * 48,
     y: sun.y + Math.sin(tangent) * 40
   };
-  const spur = {
-    x: localSun.x - 36,
-    y: localSun.y + 8
-  };
-  const spurLabel = rotatePoint({ x: spur.x + 82, y: spur.y + 42 }, center, visualRotationDegrees);
   svg.innerHTML = `
     <defs>
       <filter id="galaxyGlow"><feGaussianBlur stdDeviation="7" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -119,15 +189,13 @@ function drawGalacticOrbit(snapshot) {
         <stop offset="100%" stop-color="rgba(159,242,255,0)"/>
       </radialGradient>
     </defs>
-    <rect width="1100" height="620" rx="18" fill="rgba(1,4,10,0.86)"/>
+    <rect width="760" height="620" rx="18" fill="rgba(1,4,10,0.86)"/>
     <g class="galaxy-rotating-layer" transform="rotate(${visualRotationDegrees.toFixed(4)} ${cx} ${cy})">
-      <image href="./assets/milky-way-pia10748.jpg" x="55" y="35" width="700" height="700" opacity="0.88" preserveAspectRatio="xMidYMid slice"/>
-      <path d="M ${spur.x - 112} ${spur.y - 34} C ${spur.x - 58} ${spur.y - 66}, ${spur.x + 72} ${spur.y + 46}, ${spur.x + 158} ${spur.y + 6}" fill="none" stroke="rgba(89,210,199,0.74)" stroke-width="16" stroke-linecap="round" opacity="0.9"/>
+      <image href="./assets/milky-way-pia10748.jpg" x="30" y="-40" width="700" height="700" opacity="0.88" preserveAspectRatio="xMidYMid slice"/>
       <circle cx="${localSun.x}" cy="${localSun.y}" r="25" fill="url(#sunMarkerGlow)" filter="url(#galaxyGlow)"/>
       <circle cx="${localSun.x}" cy="${localSun.y}" r="7" fill="#ffffff"/>
     </g>
-    <rect x="55" y="35" width="700" height="550" fill="rgba(1,4,10,0.12)" pointer-events="none"/>
-    <ellipse cx="${cx}" cy="${cy}" rx="310" ry="254" fill="none" stroke="rgba(159,242,255,0.12)" stroke-width="32"/>
+    <rect x="30" y="0" width="700" height="620" fill="rgba(1,4,10,0.12)" pointer-events="none"/>
     <ellipse cx="${cx}" cy="${cy}" rx="${orbitalRadius}" ry="${orbitalRadius * 0.82}" fill="none" stroke="rgba(246,200,76,0.72)" stroke-width="4" stroke-dasharray="14 12"/>
     <circle cx="${cx}" cy="${cy}" r="7" fill="rgba(255,245,204,0.92)" stroke="rgba(5,8,15,0.82)" stroke-width="3"/>
     <line x1="${cx - 18}" y1="${cy}" x2="${cx - 8}" y2="${cy}" stroke="rgba(255,245,204,0.82)" stroke-width="2" stroke-linecap="round"/>
@@ -135,72 +203,119 @@ function drawGalacticOrbit(snapshot) {
     <line x1="${cx}" y1="${cy - 18}" x2="${cx}" y2="${cy - 8}" stroke="rgba(255,245,204,0.82)" stroke-width="2" stroke-linecap="round"/>
     <line x1="${cx}" y1="${cy + 8}" x2="${cx}" y2="${cy + 18}" stroke="rgba(255,245,204,0.82)" stroke-width="2" stroke-linecap="round"/>
     <text x="${cx}" y="${cy + 66}" class="solar-svg-label" text-anchor="middle">Galactic Center</text>
-    <text x="${spurLabel.x}" y="${spurLabel.y}" class="solar-svg-label">Orion Spur / Local Arm</text>
-    <text x="${spurLabel.x}" y="${spurLabel.y + 24}" class="solar-svg-mini">between Sagittarius and Perseus</text>
     <line x1="${sun.x}" y1="${sun.y}" x2="${arrow.x}" y2="${arrow.y}" stroke="#9ff2ff" stroke-width="6" stroke-linecap="round"/>
     <path d="M ${arrow.x - 13} ${arrow.y - 6} L ${arrow.x} ${arrow.y} L ${arrow.x - 5} ${arrow.y - 14}" fill="none" stroke="#9ff2ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
     <text x="${sun.x}" y="${sun.y - 32}" class="solar-svg-label" text-anchor="middle">Sun + Solar System</text>
-    <text x="792" y="72" class="solar-svg-title">Approximate galactic location</text>
-    <text x="792" y="108" class="solar-svg-label">Radius from center: ~26-27k light years</text>
-    <text x="792" y="138" class="solar-svg-label">Local structure: ${snapshot.galactic.arm}</text>
-    <text x="792" y="168" class="solar-svg-label">Orbit period: ~${(snapshot.galactic.galacticYearYears / 1000000).toFixed(0)}M years</text>
-    <text x="792" y="198" class="solar-svg-label">Speed: ~${snapshot.galactic.speedKmS} km/s</text>
-    <text x="792" y="246" class="solar-svg-mini">The yellow path shows the Sun's approximate orbit around the galactic center.</text>
-    <text x="792" y="274" class="solar-svg-mini">The blue arrow shows rotation/motion direction in this chosen face-on view.</text>
-    <text x="792" y="302" class="solar-svg-mini">The Sun marker is attached to the local arm for this simplified model.</text>
-    <text x="792" y="354" class="solar-svg-label">Selected offset: ${signedOffset(selectedYear)}</text>
-    <text x="792" y="384" class="solar-svg-mini">True orbital phase change: ${realRotationDegrees.toFixed(4)} deg.</text>
-    <text x="792" y="412" class="solar-svg-mini">Playback speed: ${formatSpeed(yearsPerSecond)}.</text>
-    <text x="792" y="440" class="solar-svg-mini">Background rotation is magnified ${GALAXY_VISUAL_ROTATION_MULTIPLIER}x so motion is visible.</text>
     <text x="70" y="574" class="solar-svg-mini">Background: NASA/JPL-Caltech Spitzer Milky Way artist concept PIA10748.</text>
   `;
+  renderGalacticContext(snapshot, realRotationDegrees);
 }
 
 function drawPoleCycle(snapshot) {
   const svg = document.querySelector("#poleCycleSvg");
   if (!svg) return;
   const cx = 210;
-  const cy = 158;
-  const radius = 98;
+  const cy = 154;
+  const earthRadius = 42;
+  const pathRx = 122;
+  const pathRy = 66;
   const phase = snapshot.deepTime.precession * Math.PI / 180;
-  const pointer = {
-    x: cx + Math.cos(phase - Math.PI / 2) * radius,
-    y: cy + Math.sin(phase - Math.PI / 2) * radius
+  const axisAngleDegrees = snapshot.deepTime.precession;
+  const northPointer = {
+    x: cx + Math.cos(phase - Math.PI / 2) * pathRx,
+    y: cy + Math.sin(phase - Math.PI / 2) * pathRy
   };
-  const labels = [
+  const southPointer = {
+    x: cx - Math.cos(phase - Math.PI / 2) * pathRx,
+    y: cy - Math.sin(phase - Math.PI / 2) * pathRy
+  };
+  const axisNorth = {
+    x: cx + Math.cos(phase - Math.PI / 2) * 78,
+    y: cy + Math.sin(phase - Math.PI / 2) * 78
+  };
+  const axisSouth = {
+    x: cx - Math.cos(phase - Math.PI / 2) * 78,
+    y: cy - Math.sin(phase - Math.PI / 2) * 78
+  };
+  const northLabels = [
     ["Polaris", -90],
     ["Vega", 70],
     ["Thuban", 198],
     ["Alderamin", 22]
   ];
+  const southLabels = [
+    ["Sigma Oct", 90],
+    ["Crux region", -18],
+    ["Canopus", -120],
+    ["Achernar", 180]
+  ];
   svg.innerHTML = `
+    <defs>
+      <filter id="precessionGlow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      <clipPath id="poleEarthClip"><circle cx="${cx}" cy="${cy}" r="${earthRadius}"/></clipPath>
+    </defs>
     <rect width="420" height="320" rx="12" fill="rgba(0,0,0,0.18)"/>
-    <circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="rgba(159,242,255,0.32)" stroke-width="4"/>
-    <circle cx="${cx}" cy="${cy}" r="5" fill="rgba(255,255,255,0.75)"/>
-    <line x1="${cx}" y1="${cy}" x2="${pointer.x}" y2="${pointer.y}" stroke="#f6c84c" stroke-width="5" stroke-linecap="round"/>
-    <circle cx="${pointer.x}" cy="${pointer.y}" r="9" fill="#f6c84c"/>
-    ${labels.map(([label, degrees]) => {
+    <text x="20" y="34" class="solar-svg-label">North and south pole-star drift</text>
+    <text x="20" y="56" class="solar-svg-mini">Stable tilted Earth; both axis ends drift across the sky.</text>
+    <ellipse cx="${cx}" cy="${cy}" rx="${pathRx}" ry="${pathRy}" fill="rgba(159,242,255,0.03)" stroke="rgba(159,242,255,0.28)" stroke-width="3" stroke-dasharray="9 9"/>
+    <ellipse cx="${cx}" cy="${cy}" rx="${pathRx * 0.72}" ry="${pathRy * 0.72}" fill="none" stroke="rgba(246,200,76,0.18)" stroke-width="2" stroke-dasharray="7 8"/>
+    <line x1="${axisSouth.x}" y1="${axisSouth.y}" x2="${axisNorth.x}" y2="${axisNorth.y}" stroke="#f6c84c" stroke-width="6" stroke-linecap="round"/>
+    <image href="./assets/earth-blue-marble.jpg" x="${cx - earthRadius}" y="${cy - earthRadius}" width="${earthRadius * 2}" height="${earthRadius * 2}" clip-path="url(#poleEarthClip)" preserveAspectRatio="xMidYMid slice" transform="rotate(${axisAngleDegrees.toFixed(2)} ${cx} ${cy})"/>
+    <circle cx="${cx}" cy="${cy}" r="${earthRadius}" fill="none" stroke="rgba(255,255,255,0.68)" stroke-width="2"/>
+    <line x1="${axisNorth.x}" y1="${axisNorth.y}" x2="${northPointer.x}" y2="${northPointer.y}" stroke="rgba(246,200,76,0.5)" stroke-width="3" stroke-linecap="round"/>
+    <line x1="${axisSouth.x}" y1="${axisSouth.y}" x2="${southPointer.x}" y2="${southPointer.y}" stroke="rgba(159,242,255,0.42)" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="${northPointer.x}" cy="${northPointer.y}" r="8" fill="#f6c84c" stroke="rgba(255,255,255,0.84)" stroke-width="2"/>
+    <circle cx="${southPointer.x}" cy="${southPointer.y}" r="7" fill="#9ff2ff" stroke="rgba(255,255,255,0.76)" stroke-width="2"/>
+    <text x="${northPointer.x}" y="${northPointer.y - 14}" class="solar-svg-mini" text-anchor="middle">North</text>
+    <text x="${southPointer.x}" y="${southPointer.y + 24}" class="solar-svg-mini" text-anchor="middle">South</text>
+    ${northLabels.map(([label, degrees]) => {
       const radians = degrees * Math.PI / 180;
-      const x = cx + Math.cos(radians) * (radius + 30);
-      const y = cy + Math.sin(radians) * (radius + 30);
+      const x = cx + Math.cos(radians) * (pathRx + 28);
+      const y = cy + Math.sin(radians) * (pathRy + 22);
       return `<text x="${x}" y="${y}" class="solar-svg-mini" text-anchor="middle">${label}</text>`;
     }).join("")}
-    <text x="${cx}" y="292" class="solar-svg-label" text-anchor="middle">Precession phase ${snapshot.deepTime.precession.toFixed(1)} deg</text>
+    ${southLabels.map(([label, degrees]) => {
+      const radians = degrees * Math.PI / 180;
+      const x = cx + Math.cos(radians) * (pathRx * 0.72 + 30);
+      const y = cy + Math.sin(radians) * (pathRy * 0.72 + 18);
+      return `<text x="${x}" y="${y}" class="solar-svg-mini" text-anchor="middle">${label}</text>`;
+    }).join("")}
+    <text x="${cx}" y="282" class="solar-svg-label" text-anchor="middle">North: ${snapshot.poleStars.currentNorth.name} / South: ${snapshot.poleStars.currentSouth.name}</text>
+    <text x="${cx}" y="304" class="solar-svg-mini" text-anchor="middle">Precession phase ${snapshot.deepTime.precession.toFixed(1)} deg</text>
   `;
 }
 
-function render() {
+function render(force = false) {
+  const now = performance.now();
+  if (!force && direction && now - lastRenderTime < PLAYBACK_RENDER_INTERVAL_MS) return;
+  lastRenderTime = now;
   selectedYear = clampYear(Number.parseFloat(yearInput?.value) || new Date().getFullYear());
   if (yearInput && document.activeElement !== yearInput) yearInput.value = String(Math.round(selectedYear));
-  const snapshot = solarGeometrySnapshot(new Date(), selectedYear, { name: "Earth", lat: 0, lon: 0 });
-  drawGalacticOrbit(snapshot);
-  drawPoleCycle(snapshot);
-  setText("#galacticOrbitNote", snapshot.galactic.note);
-  setText("#galacticOrbitPercent", `${snapshot.galactic.orbitPercent.toFixed(4)}%`);
-  setText("#galacticSpeed", `${snapshot.galactic.speedKmS} km/s`);
-  setText("#galacticArm", snapshot.galactic.arm);
-  renderCards("#northPoleStars", snapshot.poleStars.northStars, snapshot.poleStars.currentNorth.name);
-  renderCards("#southPoleStars", snapshot.poleStars.southStars, snapshot.poleStars.currentSouth.name);
+  const currentDate = new Date();
+  const snapshot = solarGeometrySnapshot(currentDate, selectedYear, { name: "Earth", lat: 0, lon: 0 });
+  if (isSectionVisible(".solar-geometry-panel") && (force || now - lastSolarPanelRenderTime >= SOLAR_PANEL_RENDER_INTERVAL_MS)) {
+    updateSolarGeometryPanel({
+      date: currentDate,
+      location: solarLocation,
+      formatDateTime: formatSolarDateTime,
+      timelineYear: selectedYear,
+      speedYearsPerSecond: yearsPerSecond
+    });
+    lastSolarPanelRenderTime = now;
+  }
+  if (isSectionVisible(".galactic-panel")) {
+    drawGalacticOrbit(snapshot);
+    if (force || now - lastGalacticDetailRenderTime >= GALACTIC_DETAIL_RENDER_INTERVAL_MS) {
+      drawPoleCycle(snapshot);
+      renderPoleStarSummary(snapshot);
+      setText("#galacticOrbitNote", snapshot.galactic.note);
+      setText("#galacticOrbitPercent", `${snapshot.galactic.orbitPercent.toFixed(4)}%`);
+      setText("#galacticSpeed", `${snapshot.galactic.speedKmS} km/s`);
+      setText("#galacticArm", snapshot.galactic.arm);
+      renderGalacticCards(snapshot);
+      lastGalacticDetailRenderTime = now;
+    }
+  }
   playButton.classList.toggle("playing", direction !== 0);
   playButton.classList.toggle("active", direction === 0);
   playButton.setAttribute("aria-label", direction ? "Pause" : "Play");
@@ -218,7 +333,7 @@ function stop() {
   lastFrameTime = 0;
   if (frameId) cancelAnimationFrame(frameId);
   frameId = 0;
-  render();
+  render(true);
 }
 
 function tick(timestamp) {
@@ -244,27 +359,27 @@ function play(nextDirection) {
   direction = nextDirection;
   lastFrameTime = 0;
   if (!frameId) frameId = requestAnimationFrame(tick);
-  render();
+  render(true);
 }
 
-yearInput?.addEventListener("input", render);
-yearInput?.addEventListener("change", render);
+yearInput?.addEventListener("input", () => render(true));
+yearInput?.addEventListener("change", () => render(true));
 stepBackButton?.addEventListener("click", () => {
   selectedYear = clampYear(selectedYear - STEP_YEARS);
   yearInput.value = String(Math.round(selectedYear));
-  render();
+  render(true);
 });
 stepForwardButton?.addEventListener("click", () => {
   selectedYear = clampYear(selectedYear + STEP_YEARS);
   yearInput.value = String(Math.round(selectedYear));
-  render();
+  render(true);
 });
 speedButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const speed = Number(button.dataset.galacticSpeed);
     if (Number.isFinite(speed) && speed > 0) {
       yearsPerSecond = speed;
-      render();
+      render(true);
     }
   });
 });
@@ -277,5 +392,6 @@ resetButton?.addEventListener("click", () => {
   stop();
 });
 
+setupSectionVisibility();
 initSolarGeometrySection();
-render();
+render(true);

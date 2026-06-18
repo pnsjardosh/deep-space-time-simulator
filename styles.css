@@ -1272,7 +1272,7 @@ dd {
   display: block;
   width: 100%;
   min-width: 820px;
-  min-height: 250px;
+  min-height: 280px;
 }
 
 .solar-scene-layout {
@@ -1447,6 +1447,23 @@ dd {
   background:
     radial-gradient(circle at 86% 18%, rgba(89, 210, 199, 0.16), transparent 4.4rem),
     rgba(255, 255, 255, 0.052);
+}
+
+.cycle-meter {
+  height: 8px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.cycle-meter i {
+  display: block;
+  width: calc(var(--cycle-progress, 0) * 100%);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--aqua), var(--gold));
+  box-shadow: 0 0 14px rgba(159, 242, 255, 0.36);
 }
 
 .solar-card span {
@@ -1678,31 +1695,57 @@ dd {
   background: rgba(0, 0, 0, 0.18);
 }
 
-.galactic-stat-grid {
+#galacticOrbitSvg {
+  min-height: 480px;
+  background: #000;
+}
+
+.galactic-stat-grid,
+.galactic-context-list,
+.galactic-orbit-notes,
+.pole-current-grid {
   display: grid;
   gap: 9px;
   margin-top: 12px;
 }
 
-.galactic-stat-grid div {
+.galactic-stat-grid div,
+.galactic-context-list div,
+.galactic-orbit-notes div,
+.pole-current-grid div {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   padding: 11px;
   background: rgba(0, 0, 0, 0.16);
 }
 
-.galactic-stat-grid strong {
+.galactic-stat-grid strong,
+.galactic-context-list strong,
+.galactic-orbit-notes strong,
+.pole-current-grid strong {
   display: block;
   color: white;
-  font-size: 1.16rem;
+  font-size: 1.08rem;
+  line-height: 1.16;
 }
 
-.galactic-stat-grid small {
+.galactic-stat-grid small,
+.galactic-context-list small,
+.galactic-orbit-notes small,
+.pole-current-grid small {
   display: block;
   margin-top: 3px;
   color: rgba(238, 245, 252, 0.72);
   font-size: 0.76rem;
   line-height: 1.35;
+}
+
+.galactic-orbit-notes {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pole-current-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .galactic-transport-group {

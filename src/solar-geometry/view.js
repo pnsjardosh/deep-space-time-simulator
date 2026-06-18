@@ -15,8 +15,11 @@ const SCALE_SPEEDS = {
   "50k": 25000
 };
 
+const MAX_ABS_TIMELINE_YEAR = 1000000000;
+
 let timelineScale = "year";
 let selectedTimelineYear = new Date().getFullYear();
+let timelineRangeYears = 100;
 let currentDate = new Date();
 let currentLocation = { name: "Selected location", lat: 0, lon: 0 };
 let currentFormatter = (date) => date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -29,8 +32,17 @@ function setText(selector, value) {
   if (element) element.textContent = value;
 }
 
+function setCycleProgress(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) element.style.setProperty("--cycle-progress", String(value));
+}
+
+function cycleProgress(value, period) {
+  return (((value % period) + period) % period) / period;
+}
+
 function clampTimelineYear(year) {
-  return Math.max(-50000, Math.min(50000, year));
+  return Math.max(-MAX_ABS_TIMELINE_YEAR, Math.min(MAX_ABS_TIMELINE_YEAR, year));
 }
 
 function formatSignedYearOffset(years) {
@@ -40,6 +52,8 @@ function formatSignedYearOffset(years) {
 }
 
 function scaleLabel() {
+  if (timelineRangeYears >= 1000000) return `${(timelineRangeYears / 1000000).toLocaleString()}M years/sec`;
+  if (timelineRangeYears >= 1000) return `${(timelineRangeYears / 1000).toLocaleString()}k years/sec`;
   return {
     year: "100 years/sec",
     century: "1,000 years/sec",
@@ -62,11 +76,6 @@ function svgPoint(cx, cy, rx, ry, longitude) {
   };
 }
 
-function timeOfDayRotation(date) {
-  const hours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600 + date.getUTCMilliseconds() / 3600000;
-  return (hours / 24) * 360;
-}
-
 function renderCurrentSnapshot() {
   updateSolarGeometryPanel({ date: currentDate, location: currentLocation, formatDateTime: currentFormatter });
 }
@@ -86,7 +95,7 @@ function playbackTick(timestamp) {
   lastFrameTime = timestamp;
   selectedTimelineYear = clampTimelineYear(selectedTimelineYear + playbackDirection * (SCALE_SPEEDS[timelineScale] || 100) * deltaSeconds);
   renderCurrentSnapshot();
-  if (selectedTimelineYear <= -50000 || selectedTimelineYear >= 50000) {
+  if (Math.abs(selectedTimelineYear) >= MAX_ABS_TIMELINE_YEAR) {
     stopPlayback();
     return;
   }
@@ -123,11 +132,6 @@ function drawSolarTimeline(snapshot) {
   const axisTilt = (tilt - 90) * Math.PI / 180;
   const axisDx = Math.cos(axisTilt) * 44;
   const axisDy = Math.sin(axisTilt) * 44;
-  const earthSpin = timeOfDayRotation(currentDate);
-  const precession = snapshot.deepTime.precession * Math.PI / 180;
-  const range = SCALE_RANGES[timelineScale] || 100;
-  const offsetRatio = Math.max(-1, Math.min(1, snapshot.deepTime.yearsFromPresent / range));
-  const markerX = cx + offsetRatio * 420;
   const l1 = { x: earth.x + (sunX - earth.x) * 0.16, y: earth.y + (sunY - earth.y) * 0.16 };
   const l2 = { x: earth.x - (sunX - earth.x) * 0.10, y: earth.y - (sunY - earth.y) * 0.10 };
   const l3 = { x: sunX - (earth.x - sunX) * 1.02, y: sunY - (earth.y - sunY) * 1.02 };
@@ -139,7 +143,6 @@ function drawSolarTimeline(snapshot) {
     ["Autumn Eq", 180],
     ["Dec Sol", 270]
   ];
-  const meteorMarkers = snapshot.observation.activeMeteors.slice(0, 3);
 
   svg.innerHTML = `
     <defs>
@@ -156,12 +159,6 @@ function drawSolarTimeline(snapshot) {
     <rect width="${width}" height="${height}" rx="18" fill="rgba(2,5,12,0.48)"/>
     <text x="52" y="55" class="solar-svg-title">Solar geometry layers</text>
     <text x="52" y="84" class="solar-svg-label">${formatSignedYearOffset(snapshot.deepTime.yearsFromPresent)} | e ${snapshot.deepTime.eccentricity.toFixed(4)} | obliquity ${snapshot.deepTime.obliquity.toFixed(2)} deg</text>
-    <line x1="${cx - 420}" y1="382" x2="${cx + 420}" y2="382" stroke="rgba(255,255,255,0.24)" stroke-width="3"/>
-    <line x1="${cx}" y1="369" x2="${cx}" y2="395" stroke="rgba(246,200,76,0.74)" stroke-width="3"/>
-    <circle cx="${markerX}" cy="382" r="10" fill="#9ff2ff" filter="url(#softGlow)"/>
-    <text x="${cx - 420}" y="414" class="solar-svg-label">-${range.toLocaleString()}y</text>
-    <text x="${cx}" y="414" class="solar-svg-label" text-anchor="middle">Now</text>
-    <text x="${cx + 420}" y="414" class="solar-svg-label" text-anchor="end">+${range.toLocaleString()}y</text>
     <ellipse cx="${cx}" cy="${cy}" rx="${orbitRx}" ry="${orbitRy}" fill="none" stroke="rgba(154,224,255,0.5)" stroke-width="4"/>
     ${seasonMarkers.map(([label, lon]) => {
       const point = svgPoint(cx, cy, orbitRx, orbitRy, lon);
@@ -176,18 +173,12 @@ function drawSolarTimeline(snapshot) {
     </g>
     <g class="solar-earth-group" style="transform-origin: ${earth.x}px ${earth.y}px;">
       <circle cx="${earth.x}" cy="${earth.y}" r="${earthRadius + 3}" fill="rgba(89,210,199,0.18)" filter="url(#softGlow)"/>
-      <image class="solar-earth-image" href="./assets/earth-blue-marble.jpg" x="${earth.x - earthRadius}" y="${earth.y - earthRadius}" width="${earthRadius * 2}" height="${earthRadius * 2}" clip-path="url(#solarEarthClip)" preserveAspectRatio="xMidYMid slice" transform="rotate(${earthSpin.toFixed(2)} ${earth.x} ${earth.y})"/>
-      <circle class="solar-earth-terminator" cx="${earth.x}" cy="${earth.y}" r="${earthRadius}" fill="rgba(0,0,0,0)"/>
+      <image class="solar-earth-image" href="./assets/earth-blue-marble.jpg" x="${earth.x - earthRadius}" y="${earth.y - earthRadius}" width="${earthRadius * 2}" height="${earthRadius * 2}" clip-path="url(#solarEarthClip)" preserveAspectRatio="xMidYMid slice"/>
+      <circle class="solar-earth-terminator" cx="${earth.x}" cy="${earth.y}" r="${earthRadius}"/>
       <circle cx="${earth.x}" cy="${earth.y}" r="${earthRadius}" fill="none" stroke="rgba(255,255,255,0.78)" stroke-width="3"/>
     </g>
     <line x1="${earth.x - axisDx}" y1="${earth.y - axisDy}" x2="${earth.x + axisDx}" y2="${earth.y + axisDy}" stroke="#f6c84c" stroke-width="5" stroke-linecap="round"/>
     <text x="${earth.x}" y="${earth.y + 58}" class="solar-svg-label" text-anchor="middle">Earth</text>
-    <circle cx="1018" cy="120" r="50" fill="none" stroke="rgba(246,200,76,0.32)" stroke-width="3"/>
-    <line x1="1018" y1="120" x2="${1018 + Math.cos(precession) * 38}" y2="${120 + Math.sin(precession) * 38}" stroke="#f6c84c" stroke-width="4" stroke-linecap="round"/>
-    <text x="1018" y="188" class="solar-svg-label" text-anchor="middle">Precession</text>
-    <line x1="950" y1="250" x2="1086" y2="290" stroke="rgba(159,242,255,0.5)" stroke-width="3"/>
-    <text x="1018" y="318" class="solar-svg-label" text-anchor="middle">Lunar node line</text>
-    ${meteorMarkers.map((m, index) => `<circle cx="${940 + index * 92}" cy="352" r="7" fill="rgba(246,200,76,0.86)"/><text x="${940 + index * 92}" y="337" class="solar-svg-mini" text-anchor="middle">${m.radiant}</text>`).join("")}
   `;
 }
 
@@ -275,7 +266,10 @@ function renderSolarGlobePanel(snapshot) {
 function renderList(containerSelector, items, emptyText) {
   const container = document.querySelector(containerSelector);
   if (!container) return;
-  container.innerHTML = items.length ? items.join("") : `<p class="solar-empty">${emptyText}</p>`;
+  const html = items.length ? items.join("") : `<p class="solar-empty">${emptyText}</p>`;
+  if (container.dataset.renderKey === html) return;
+  container.innerHTML = html;
+  container.dataset.renderKey = html;
 }
 
 function renderPhenomena(snapshot) {
@@ -336,10 +330,14 @@ function syncPlaybackButtons() {
   setText("#solarPlaybackStatus", `${direction} / ${scaleLabel()}`);
 }
 
-export function updateSolarGeometryPanel({ date, location, formatDateTime }) {
+export function updateSolarGeometryPanel({ date, location, formatDateTime, timelineYear, speedYearsPerSecond }) {
   currentDate = date;
   if (location) currentLocation = location;
   if (formatDateTime) currentFormatter = formatDateTime;
+  if (Number.isFinite(timelineYear)) selectedTimelineYear = clampTimelineYear(timelineYear);
+  if (Number.isFinite(speedYearsPerSecond) && speedYearsPerSecond > 0) {
+    timelineRangeYears = Math.max(100, speedYearsPerSecond);
+  }
   const snapshot = solarGeometrySnapshot(date, selectedTimelineYear, currentLocation);
   setText("#vernalEquinoxValue", currentFormatter(snapshot.vernalEquinox.date));
   setText("#nextSolarMarkerValue", `${snapshot.nextMarker.name} / ${currentFormatter(snapshot.nextMarker.date)}`);
@@ -351,6 +349,9 @@ export function updateSolarGeometryPanel({ date, location, formatDateTime }) {
   setText("#deepObliquityValue", `${snapshot.deepTime.obliquity.toFixed(2)} deg`);
   setText("#deepEccentricityValue", snapshot.deepTime.eccentricity.toFixed(4));
   setText("#deepPrecessionValue", `${snapshot.deepTime.precession.toFixed(1)} deg`);
+  setCycleProgress("#obliquityCycleMeter", cycleProgress(snapshot.deepTime.yearsFromPresent, 41000));
+  setCycleProgress("#eccentricityCycleMeter", cycleProgress(snapshot.deepTime.yearsFromPresent, 100000));
+  setCycleProgress("#precessionCycleMeter", cycleProgress(snapshot.deepTime.yearsFromPresent, 25770));
   drawSolarTimeline(snapshot);
   renderPhenomena(snapshot);
   syncControls(snapshot);
